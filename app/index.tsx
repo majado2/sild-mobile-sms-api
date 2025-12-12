@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import SendSMS from 'react-native-send-sms';
+import BackgroundService from 'react-native-background-actions';
 
 type PendingSms = {
   id: number;
@@ -19,13 +20,14 @@ const STATUS_COLORS = {
   error: '#b91c1c',
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default function HomeScreen() {
   const [isRunning, setIsRunning] = useState(false);
   const [lastStatus, setLastStatus] = useState<string>('Agent stopped');
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runningRef = useRef(false);
 
   const sendSms = useCallback((sms: PendingSms) => {
@@ -78,29 +80,69 @@ export default function HomeScreen() {
     }
   }, [markSent, sendSms]);
 
-  const startAgent = useCallback(() => {
+  const startBackgroundLoop = useCallback(async () => {
+    const task = async () => {
+      while (runningRef.current) {
+        await pollOnce();
+        await sleep(POLL_INTERVAL);
+      }
+    };
+
+    const options = {
+      taskName: 'SMS Agent',
+      taskTitle: 'SMS Agent active',
+      taskDesc: 'Auto-sending pending SMS in background',
+      taskIcon: {
+        name: 'ic_launcher',
+        type: 'mipmap',
+      },
+      color: '#0f172a',
+      parameters: {},
+    };
+
+    await BackgroundService.start(task, options);
+  }, [pollOnce]);
+
+  const stopBackgroundLoop = useCallback(async () => {
+    await BackgroundService.stop();
+  }, []);
+
+  const startAgent = useCallback(async () => {
     if (isRunning) return;
     if (!isAndroid) {
       setError('SMS sending is Android-only.');
       return;
     }
 
-    setIsRunning(true);
-    runningRef.current = true;
-    setLastStatus('Agent running');
-    pollOnce();
-    intervalRef.current = setInterval(pollOnce, POLL_INTERVAL);
-  }, [isRunning, pollOnce]);
+    try {
+      setError(null);
+      setIsRunning(true);
+      runningRef.current = true;
+      setLastStatus('Agent running (foreground service)');
+      await startBackgroundLoop();
+    } catch (err) {
+      runningRef.current = false;
+      setIsRunning(false);
+      const message = err instanceof Error ? err.message : 'Unable to start background service';
+      setError(message);
+      setLastStatus('Failed to start agent');
+    }
+  }, [isRunning, startBackgroundLoop]);
 
-  const stopAgent = useCallback(() => {
+  const stopAgent = useCallback(async () => {
     setIsRunning(false);
     runningRef.current = false;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    await stopBackgroundLoop();
     setLastStatus('Agent stopped');
-  }, []);
+  }, [stopBackgroundLoop]);
+
+  const handleStartPress = useCallback(() => {
+    void startAgent();
+  }, [startAgent]);
+
+  const handleStopPress = useCallback(() => {
+    void stopAgent();
+  }, [stopAgent]);
 
   useEffect(() => {
     return () => {
@@ -123,10 +165,10 @@ export default function HomeScreen() {
 
       <View style={styles.buttonRow}>
         <View style={styles.button}>
-          <Button title="Start" onPress={startAgent} disabled={isRunning} />
+          <Button title="Start" onPress={handleStartPress} disabled={isRunning} />
         </View>
         <View style={styles.button}>
-          <Button title="Stop" onPress={stopAgent} disabled={!isRunning} color="#b91c1c" />
+          <Button title="Stop" onPress={handleStopPress} disabled={!isRunning} color="#b91c1c" />
         </View>
       </View>
 

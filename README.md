@@ -6,6 +6,7 @@
 - نسخة Node حديثة، Android SDK مفعّل، وجهاز أندرويد حقيقي للتجربة.
 - ثبّت الاعتماديات: `npm install`.
 - العنوان مثبت في الكود (`BASE_URL = https://slid.ethra2.com`) داخل `app/index.tsx`، عدّله فقط إذا تغيّر عنوان الـAPI.
+- التطبيق يستخدم خدمة Foreground أندرويد عبر `react-native-background-actions` ليواصل العمل في الخلفية بعد الضغط على Start.
   - `POLL_INTERVAL` (بالملي ثانية) الافتراضي 3000.
 
 ## بناء نسخة Native (مطلوب للمكتبة)
@@ -27,6 +28,7 @@
    ```
    <uses-permission android:name="android.permission.SEND_SMS" />
    ```
+6) الخلفية: اعتمدنا `react-native-background-actions` كخدمة Foreground أندرويد. بعد `prebuild` ستُربط تلقائيًا (Autolink) لكن تأكد من وجود الصلاحيات `FOREGROUND_SERVICE` و `WAKE_LOCK` (مضافة في `app.json`). عند الضغط على Start سيُفعّل إشعار خدمة foreground ليحافظ على عمل الحلقة في الخلفية.
 
 > ملاحظة: تشغيل `expo prebuild --clean` يعيد توليد مجلد android، وأي تعديلات يدويّة يجب إعادة تطبيقها.
 
@@ -43,6 +45,7 @@
 - يرسل SMS برقم المستلم ومحتوى الرسالة عبر `react-native-send-sms`.
 - عند نجاح الإرسال يطلب `POST /sms/{id}/sent`.
 - لا يتم التحقق من وصول الرسالة للمستلم (PoC فقط).
+- حلقة الإرسال تعمل أيضًا كخدمة Foreground لتستمر في الخلفية، لكن توقف النظام للتطبيق ممكن إذا أُغلق يدويًا أو حُرم من الصلاحية.
 
 ## ملاحظات
 - التطبيق أندرويد فقط ولا يعمل على iOS أو Emulator للإرسال الفعلي.

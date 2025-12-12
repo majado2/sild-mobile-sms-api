@@ -12,7 +12,7 @@
       "supportsTablet": true
     },
     "android": {
-      "permissions": ["SEND_SMS"],
+      "permissions": ["SEND_SMS", "FOREGROUND_SERVICE", "WAKE_LOCK"],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
